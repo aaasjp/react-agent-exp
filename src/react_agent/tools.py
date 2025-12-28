@@ -6,10 +6,10 @@ These tools are intended as free examples to get started. For production use,
 consider implementing more robust and specialized tools tailored to your needs.
 """
 
+import json
 import os
 import sys
 from pathlib import Path
-from telnetlib import WONT
 from typing import Any, Callable, List, Optional, cast
 
 from langchain_tavily import TavilySearch
@@ -18,7 +18,7 @@ from langgraph.runtime import get_runtime
 from react_agent.context import Context
 
 
-workspace_path="/Users/ailabuser7-1/Documents/cursor-workspace/react-agent-exp"
+workspace_path="/Users/ailabuser7-1/Documents/cursor-workspace/react-agent-exp/data"
 
 async def search(query: str) -> Optional[dict[str, Any]]:
     """Search for general web results.
@@ -41,7 +41,11 @@ async def find_directory(keyword: str) -> dict[str, Any]:
         keyword: 用于搜索目录的关键词
 
     Returns:
-        包含匹配目录路径列表的字典
+        包含以下字段的字典:
+        - matching_directories: 匹配的目录路径列表
+        - count: 匹配目录的数量
+        - keyword: 搜索使用的关键词
+        - workspace_path: 工作空间的根路径
     """
     matching_dirs = []
     # 遍历工作空间目录，查找包含关键词的目录
@@ -53,7 +57,13 @@ async def find_directory(keyword: str) -> dict[str, Any]:
             rel_path = current_dir.relative_to(workspace_path)
             matching_dirs.append(str(rel_path))
     
-    return {"matching_directories": matching_dirs, "count": len(matching_dirs), "keyword": keyword, "workspace_path": workspace_path}
+    result = {
+        "matching_directories": matching_dirs,
+        "count": len(matching_dirs),
+        "keyword": keyword,
+        "workspace_path": workspace_path
+    }
+    return result
 
 
 def _has_markdown_files(directory: Path) -> bool:
@@ -78,16 +88,16 @@ def _has_markdown_files(directory: Path) -> bool:
     return False
 
 
-async def list_directory(path: str) -> dict[str, Any]:
-    """基于目录路径列出目录下面的文档和子目录。
+async def list_directory_files(path: str) -> dict[str, Any]:
+    """递归列出给定目录下所有 markdown 格式的文件。
 
-    只列出 markdown (.md) 格式的文件，以及包含 markdown 文件的目录。
+    递归遍历目录及其所有子目录，返回所有 .md 文件的相对路径列表。
 
     Args:
         path: 目录路径（相对于工作空间根目录或绝对路径）
 
     Returns:
-        包含文件和子目录列表的字典（仅包含 markdown 相关的内容）
+        包含文件路径列表的字典，格式如 ["a/b/c.md", "a/e/f/d.md"]
     """
     
     # 处理相对路径和绝对路径
@@ -98,43 +108,33 @@ async def list_directory(path: str) -> dict[str, Any]:
         target_path = workspace_path_obj / path
     
     if not target_path.exists():
-        return {"error": f"路径不存在: {path}", "files": [], "directories": []}
+        return {"error": f"路径不存在: {path}", "files": []}
     
     if not target_path.is_dir():
-        return {"error": f"路径不是目录: {path}", "files": [], "directories": []}
+        return {"error": f"路径不是目录: {path}", "files": []}
     
     files = []
-    directories = []
     
     try:
-        for item in sorted(target_path.iterdir()):
-            rel_path = item.relative_to(workspace_path_obj)
+        # 递归遍历目录，查找所有 .md 文件
+        for item in target_path.rglob("*.md"):
             if item.is_file():
-                # 只添加 .md 文件
-                if item.suffix.lower() == '.md':
-                    files.append({
-                        "name": item.name,
-                        "path": str(rel_path),
-                        "size": item.stat().st_size
-                    })
-            elif item.is_dir():
-                # 只添加包含 markdown 文件的目录
-                if _has_markdown_files(item):
-                    directories.append({
-                        "name": item.name,
-                        "path": str(rel_path)
-                    })
+                rel_path = item.relative_to(workspace_path_obj)
+                files.append(str(rel_path))
+        
+        # 按路径排序
+        files.sort()
+        
+        result = {
+            "path": str(target_path.relative_to(workspace_path_obj)),
+            "files": files,
+            "file_count": len(files)
+        }
+        return result
     except PermissionError:
-        return {"error": f"没有权限访问目录: {path}", "files": [], "directories": []}
-    
-    result = {
-        "path": str(target_path.relative_to(workspace_path_obj)),
-        "files": files,
-        "directories": directories,
-        "file_count": len(files),
-        "directory_count": len(directories)
-    }
-    return result
+        return {"error": f"没有权限访问目录: {path}", "files": []}
+    except Exception as e:
+        return {"error": f"遍历目录时出错: {str(e)}", "files": []}
 
 
 async def read_file(path: str) -> dict[str, Any]:
@@ -175,7 +175,7 @@ async def read_file(path: str) -> dict[str, Any]:
                     "content": None,
                     "path": str(target_path.relative_to(workspace_path_obj))
                 }
-        
+        content=content[:1000]
         result = {
             "path": str(target_path.relative_to(workspace_path_obj)),
             "content": content,
@@ -189,4 +189,4 @@ async def read_file(path: str) -> dict[str, Any]:
         return {"error": f"读取文件时出错: {str(e)}", "content": None}
 
 
-TOOLS: List[Callable[..., Any]] = [search, find_directory, list_directory, read_file]
+TOOLS: List[Callable[..., Any]] = [search, find_directory, list_directory_files, read_file]
