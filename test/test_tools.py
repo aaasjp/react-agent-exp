@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-workspace_path="/Users/ailabuser7-1/Documents/cursor-workspace/react-agent-exp"
+workspace_path="C:\Users\aaasj\Documents\cursor_workspace\react-agent-exp"
 
 def find_directory(keyword: str) -> dict[str, Any]:
     """基于关键词查找目录路径。
