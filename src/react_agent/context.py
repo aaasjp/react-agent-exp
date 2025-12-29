@@ -36,6 +36,12 @@ class Context:
         },
     )
 
+    workspace_path: str = field(
+        default="C:\\Users\\aaasj\\Documents\\cursor_workspace\\react-agent-exp\\data",
+        metadata={
+            "description": "The path to the workspace directory for document analysis."
+        },
+    )
     def __post_init__(self) -> None:
         """Fetch env vars for attributes that were not passed as args."""
         for f in fields(self):
