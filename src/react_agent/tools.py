@@ -19,7 +19,7 @@ from react_agent.context import Context
 
 
 workspace_path="/Users/ailabuser7-1/Documents/cursor-workspace/react-agent-exp/data"
-workspace_path="C:\\Users\\aaasj\\Documents\\cursor_workspace\\react-agent-exp\\data"
+#workspace_path="C:\\Users\\aaasj\\Documents\\cursor_workspace\\react-agent-exp\\data"
 
 async def search(query: str) -> Optional[dict[str, Any]]:
     """Search for general web results.
@@ -50,11 +50,9 @@ async def find_directory(keyword: str) -> dict[str, Any]:
     """
     matching_dirs = []
     # 遍历工作空间目录，查找包含关键词的目录
-    print(f"--------------------------------workspace_path: {workspace_path}")
     for root, dirs, files in os.walk(workspace_path):
         # 检查当前目录名是否包含关键词
         current_dir = Path(root)
-        print(f"--------------------------------current_dir: {current_dir}")
         if keyword.lower() in current_dir.name.lower():
             # 获取相对于工作空间的路径
             rel_path = current_dir.relative_to(workspace_path)
@@ -67,12 +65,7 @@ async def find_directory(keyword: str) -> dict[str, Any]:
         "workspace_path": workspace_path
     }
     return result
-    return {
-        "matching_directories": matching_dirs, 
-        "count": len(matching_dirs), 
-        "keyword": keyword, 
-        "workspace_path": workspace_path,
-    }
+
 
 
 def _has_markdown_files(directory: Path) -> bool:
