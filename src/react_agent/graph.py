@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Dict, List, Literal, cast
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
@@ -18,7 +18,6 @@ from react_agent.state import InputState, State
 from react_agent.tools import TOOLS
 from react_agent.utils import load_chat_model
 
-# Define the function that calls the model
 
 async def workspace_index(
     state: State, runtime: Runtime[Context]
@@ -117,12 +116,14 @@ async def workspace_index(
     # 2. 收集文档内容（读取前 N 个 markdown 文件的内容摘要）
     document_contents = []
     max_files_to_read = 20  # 限制读取的文件数量，避免内容过长
+    preview_length = 2000  # 每个文件预览的最大字符数
     
     for file_path in markdown_files[:max_files_to_read]:
         try:
             full_path = workspace_path_obj / file_path
-            # 读取文件前 2000 个字符作为摘要
-            content = full_path.read_text(encoding='utf-8', errors='ignore')[:2000]
+            # 高效读取文件前 N 个字符作为摘要
+            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read(preview_length)
             document_contents.append({
                 "path": file_path,
                 "content_preview": content,
@@ -166,24 +167,33 @@ async def workspace_index(
 请用中文详细回答，结构清晰，便于理解。"""
 
     # 4. 使用大模型进行分析
-    model = load_chat_model(runtime.context.model)
-    
-    system_message = """你是一个专业的文档分析助手。你的任务是分析工作空间的目录结构和文档内容，
+    try:
+        model = load_chat_model(runtime.context.model)
+        
+        system_message = """你是一个专业的文档分析助手。你的任务是分析工作空间的目录结构和文档内容，
 提供深入的结构化分析和建议。请确保分析全面、准确、有条理。"""
-    
-    response = await model.ainvoke([
-        {"role": "system", "content": system_message},
-        HumanMessage(content=analysis_prompt)
-    ])
-    
-    # 提取模型的分析报告
-    analysis_report = ""
-    if hasattr(response, 'content'):
-        if isinstance(response.content, str):
-            analysis_report = response.content
-        elif isinstance(response.content, list):
-            # 处理内容为列表的情况
-            analysis_report = " ".join(str(item) for item in response.content)
+        
+        # 统一使用消息对象格式，保持与 call_model 的一致性
+        response = await model.ainvoke([
+            SystemMessage(content=system_message),
+            HumanMessage(content=analysis_prompt)
+        ])
+        
+        # 提取模型的分析报告
+        analysis_report = ""
+        if hasattr(response, 'content'):
+            if isinstance(response.content, str):
+                analysis_report = response.content
+            elif isinstance(response.content, list):
+                # 处理内容为列表的情况
+                analysis_report = " ".join(str(item) for item in response.content)
+            else:
+                analysis_report = str(response.content)
+        else:
+            analysis_report = "模型响应格式异常，无法提取分析报告"
+    except Exception as e:
+        # 如果模型调用失败，记录错误但继续返回目录结构信息
+        analysis_report = f"模型分析失败: {str(e)}"
     
     # 5. 构建结构化的 JSON 返回结果
     result = {
@@ -202,6 +212,7 @@ async def workspace_index(
     
     return {"messages": [result_msg]}
 
+# Define the function that calls the model
 async def call_model(
     state: State, runtime: Runtime[Context]
 ) -> Dict[str, List[AIMessage]]:
