@@ -90,7 +90,7 @@ agent = create_agent(
     model=basic_model,  # Default model
     tools=tools,
     middleware=[dynamic_model_selection, handle_tool_errors],
-    system_prompt="You are a helpful assistant. Be concise and accurate."
+    system_prompt="You are a helpful assistant. Your answer must be accurate. before you answer,you should think carefully!"
 )
 
 '''
