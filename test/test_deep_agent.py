@@ -3,6 +3,7 @@ from langchain.tools import tool
 from typing import Any, Optional, cast
 from langchain_core.runnables.config import P
 from langchain_openai import ChatOpenAI
+from deepagents.backends.filesystem import FilesystemBackend
 
 import os
 from dotenv import load_dotenv
@@ -29,13 +30,14 @@ from deepagents import create_deep_agent
 
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
+@tool
 def internet_search(
     query: str,
     max_results: int = 5,
     topic: Literal["general", "news", "finance"] = "general",
     include_raw_content: bool = False,
 ):
-    """Run a web search"""
+    """Search the internet for information"""
     return tavily_client.search(
         query,
         max_results=max_results,
@@ -57,13 +59,13 @@ Use this to run an internet search for a given query. You can specify the max nu
 agent = create_deep_agent(
     model=llm,
     tools=[internet_search],
+    backend=FilesystemBackend(root_dir="/Users/ailabuser7-1/Documents/cursor-workspace/react-agent-exp/agent-files/",virtual_mode=True),
     system_prompt=research_instructions
 )
 
 
-'''
-result = agent.invoke({"messages": [{"role": "user", "content": "What is langgraph?"}]})
 
-# Print the agent's response
-print(result["messages"][-1].content)
-'''
+result = agent.stream({"messages": [{"role": "user", "content": "给我写一篇关于deepagents的文档"}]})
+for i,chunk in enumerate(result):
+    print(f"=============chunk {i}")
+    print(f"chunk: {chunk}")
